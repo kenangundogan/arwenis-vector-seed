@@ -1,0 +1,12 @@
+{
+    "name": "arwenis-vector-seed",
+    "version": "0.1.0",
+    "private": true,
+    "type": "module",
+    "description": "Arwenis için müşteriye/demoya özel vektör DB besleme aracı (scrape + embed + upsert). Arwenis ürününden bağımsızdır.",
+    "scripts": {
+        "scrape": "node scrape-news.mjs",
+        "seed": "node seed-vector-db.mjs",
+        "all": "node scrape-news.mjs && node seed-vector-db.mjs"
+    }
+}
