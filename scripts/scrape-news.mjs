@@ -5,16 +5,30 @@ import { fileURLToPath } from 'url'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 const FEEDS = [
-    { url: 'https://www.haberturk.com/rss/gundem.xml', category: 'gundem' },
+    { url: 'https://www.haberturk.com/rss/manset.xml', category: 'gundem' },
+    { url: 'https://www.haberturk.com/rss', category: 'gundem' },
     { url: 'https://www.haberturk.com/rss/ekonomi.xml', category: 'ekonomi' },
     { url: 'https://www.haberturk.com/rss/spor.xml', category: 'spor' },
-    { url: 'https://www.haberturk.com/rss/teknoloji.xml', category: 'teknoloji' },
-    { url: 'https://www.haberturk.com/rss/dunya.xml', category: 'dunya' },
-    { url: 'https://www.haberturk.com/rss/saglik.xml', category: 'saglik' },
-    { url: 'https://www.haberturk.com/rss/yasam.xml', category: 'yasam' },
     { url: 'https://www.haberturk.com/rss/magazin.xml', category: 'magazin' },
-    { url: 'https://www.haberturk.com/rss/kultur-sanat.xml', category: 'kultur-sanat' },
-    { url: 'https://www.haberturk.com/rss/otomobil.xml', category: 'otomobil' },
+    { url: 'https://www.haberturk.com/rss/kategori/medya.xml', category: 'magazin' },
+    { url: 'https://www.haberturk.com/rss/kategori/kadin.xml', category: 'yasam' },
+    { url: 'https://www.haberturk.com/rss/kategori/siyaset.xml', category: 'gundem' },
+    { url: 'https://www.haberturk.com/rss/kategori/tatil.xml', category: 'turizm' },
+    { url: 'https://www.haberturk.com/rss/kategori/is-yasam.xml', category: 'ekonomi' },
+    { url: 'https://www.haberturk.com/rss/kategori/astroloji.xml', category: 'astroloji' },
+    { url: 'https://www.haberturk.com/rss/kategori/saglik.xml', category: 'saglik' },
+    { url: 'https://www.haberturk.com/rss/kategori/dunya.xml', category: 'dunya' },
+    { url: 'https://www.haberturk.com/rss/kategori/yasam.xml', category: 'yasam' },
+    { url: 'https://www.haberturk.com/rss/kategori/gida.xml', category: 'yemek' },
+    { url: 'https://www.haberturk.com/rss/kategori/gundem.xml', category: 'gundem' },
+    { url: 'https://www.haberturk.com/rss/kategori/kultur-sanat.xml', category: 'kultur-sanat' },
+    { url: 'https://www.haberturk.com/rss/kategori/sinema.xml', category: 'sinema-dizi' },
+    { url: 'https://www.haberturk.com/rss/kategori/teknoloji.xml', category: 'teknoloji' },
+    { url: 'https://www.haberturk.com/rss/kategori/otomobil.xml', category: 'otomobil' },
+    { url: 'https://www.haberturk.com/rss/kategori/kitap.xml', category: 'kultur-sanat' },
+    { url: 'https://www.haberturk.com/rss/kategori/video.xml', category: 'gundem' },
+    { url: 'https://www.haberturk.com/rss/kategori/yazarlar.xml', category: 'gundem' },
+    { url: 'https://www.haberturk.com/rss/yerel-haberler.xml', category: 'gundem' }
 ]
 
 const TARGET_COUNT = Number(process.env.TARGET_COUNT) || 400
