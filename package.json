@@ -5,8 +5,12 @@
     "type": "module",
     "description": "Arwenis için müşteriye/demoya özel vektör DB besleme aracı (scrape + embed + upsert). Arwenis ürününden bağımsızdır.",
     "scripts": {
-        "scrape": "node scrape-news.mjs",
-        "seed": "node seed-vector-db.mjs",
-        "all": "node scrape-news.mjs && node seed-vector-db.mjs"
+        "scrape": "node --env-file=.env scrape-news.mjs",
+        "seed": "node --env-file=.env seed-vector-db.mjs",
+        "synthetic": "node --env-file=.env generate-synthetic.mjs",
+        "all:real": "node --env-file=.env scrape-news.mjs && node --env-file=.env seed-vector-db.mjs",
+        "all:synthetic": "node --env-file=.env generate-synthetic.mjs && node --env-file=.env seed-vector-db.mjs",
+        "clear-points": "node --env-file=.env delete-qdrant.mjs points",
+        "delete-collection": "node --env-file=.env delete-qdrant.mjs collection"
     }
 }
