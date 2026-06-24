@@ -468,7 +468,7 @@ const main = async () => {
     console.log(`[+] Sentetik haber üretimi başlatılıyor... (Hedef: ${TARGET_COUNT})`)
     const docs = makeSynthetic(TARGET_COUNT)
 
-    const dataDir = path.join(__dirname, 'data')
+    const dataDir = path.join(__dirname, '..', 'data')
     fs.mkdirSync(dataDir, { recursive: true })
     const target = path.join(dataDir, 'news.json')
     fs.writeFileSync(target, JSON.stringify(docs, null, 2), 'utf-8')

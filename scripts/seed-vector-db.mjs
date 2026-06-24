@@ -60,7 +60,7 @@ const qdrant = async (p, method, body) => {
 }
 
 const main = async () => {
-    const docs = JSON.parse(fs.readFileSync(path.join(__dirname, 'data', 'news.json'), 'utf-8'))
+    const docs = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'data', 'news.json'), 'utf-8'))
     console.log(`Embedding: ${EMBED_BASE_URL} (${EMBED_MODEL}) | Qdrant: ${QDRANT_URL}/${COLLECTION}`)
     console.log(`[+] ${docs.length} doküman`)
 

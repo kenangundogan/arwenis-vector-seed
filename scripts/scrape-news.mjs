@@ -102,7 +102,7 @@ const main = async () => {
         docs = docs.slice(0, TARGET_COUNT)
     }
 
-    const dataDir = path.join(__dirname, 'data')
+    const dataDir = path.join(__dirname, '..', 'data')
     fs.mkdirSync(dataDir, { recursive: true })
     const target = path.join(dataDir, 'news.json')
     fs.writeFileSync(target, JSON.stringify(docs, null, 2), 'utf-8')
