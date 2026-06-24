@@ -18,10 +18,10 @@ Projede kullanılan temel altyapılar ve görevleri aşağıda açıklanmıştı
 
 ## Proje Klasör Yapısı
 
-* scrape-news.mjs - Belirlenen RSS kaynaklarından gerçek haberleri çekerek data/news.json dosyasına kaydeder.
-* generate-synthetic.mjs - Astrolojiden spora kadar 18 farklı kategoride, zengin içerikli ve paragraflı Türkçe yapay haberler üreterek data/news.json dosyasına kaydeder.
-* seed-vector-db.mjs - Üretilen veya kazınan haber verilerini embedding API'si üzerinden vektörleştirerek Qdrant veritabanına yükler.
-* delete-qdrant.mjs - Qdrant üzerindeki koleksiyonları silmek veya verileri temizlemek için kullanılan yardımcı araçtır.
+* scripts/scrape-news.mjs - Belirlenen RSS kaynaklarından gerçek haberleri çekerek data/news.json dosyasına kaydeder.
+* scripts/generate-synthetic.mjs - Astrolojiden spora kadar 18 farklı kategoride, zengin içerikli ve paragraflı Türkçe yapay haberler üreterek data/news.json dosyasına kaydeder.
+* scripts/seed-vector-db.mjs - Üretilen veya kazınan haber verilerini embedding API'si üzerinden vektörleştirerek Qdrant veritabanına yükler.
+* scripts/delete-qdrant.mjs - Qdrant üzerindeki koleksiyonları silmek veya verileri temizlemek için kullanılan yardımcı araçtır.
 * .env.example - Projenin ihtiyaç duyduğu çevre değişkenleri için şablon dosyasıdır.
 
 ## Sistem Gereksinimleri ve Kurulum
