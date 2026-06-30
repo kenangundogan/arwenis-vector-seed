@@ -1,6 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
+import { buildImageSet } from './lib/images.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const TARGET_COUNT = Number(process.env.TARGET_COUNT) || 1000
@@ -430,7 +431,7 @@ const CATEGORY_IMAGES = {
     cevre: 'https://images.unsplash.com/photo-1447752875215-b2761acb3c5d?auto=format&fit=crop&w=800&q=80',
     'sinema-dizi': 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?auto=format&fit=crop&w=800&q=80',
     yemek: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=800&q=80',
-    seyahat: 'https://images.unsplash.com/photo-1488646953014-85cb44e25828?auto=format&fit=crop&w=800&q=80',
+    turizm: 'https://images.unsplash.com/photo-1488646953014-85cb44e25828?auto=format&fit=crop&w=800&q=80',
 }
 
 const makeSynthetic = (count) => {
@@ -452,8 +453,8 @@ const makeSynthetic = (count) => {
         docs.push({
             title,
             url,
-            image: CATEGORY_IMAGES[cat] || CATEGORY_IMAGES['gundem'],
-            text,
+            images: buildImageSet(CATEGORY_IMAGES[cat] || CATEGORY_IMAGES['gundem']),
+            description: text,
             content,
             category: cat,
             source: 'synthetic',

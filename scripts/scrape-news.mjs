@@ -1,6 +1,8 @@
 import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
+import { buildImageSet } from './lib/images.mjs'
+import { cleanText, htmlToText } from './lib/html.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -31,24 +33,97 @@ const FEEDS = [
     { url: 'https://www.haberturk.com/rss/yerel-haberler.xml', category: 'gundem' }
 ]
 
-const TARGET_COUNT = Number(process.env.TARGET_COUNT) || 400
+const TARGET_COUNT = Number(process.env.TARGET_COUNT) || 1000
+const SKIP_CONTENT = process.env.SKIP_CONTENT === '1'
+const CONTENT_CONCURRENCY = Number(process.env.CONTENT_CONCURRENCY) || 8
+const UA = 'Mozilla/5.0 (compatible; ArwenisSeed/1.0)'
+const DETAY_API = 'https://htapi.haberturk.com/api/v1/haber/detay'
 
-const cleanText = (text) => {
-    if (!text) return ''
-    let c = text.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')
-    c = c
-        .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
-        .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&apos;/g, "'")
-        .replace(/&nbsp;/g, ' ').replace(/&rsquo;/g, "'").replace(/&lsquo;/g, "'")
-        .replace(/&ldquo;/g, '"').replace(/&rdquo;/g, '"')
-    c = c.replace(/<\/?[^>]+(>|$)/g, '')
-    return c.trim()
+// Haber ID'si URL'in sonunda ya da kategori ekinden önce yer alır
+// (".../slug-3895047", ".../slug-3895047-magazin", ".../yazar/3894887-slug-1").
+// Yoldaki son 6+ haneli sayıyı ID kabul ederiz. Detay API'si yalnızca www.haberturk.com
+// haberlerini sunduğundan diğer alt domain'ler (hthayat, yerel-haberler) atlanır.
+const HT_MAIN = /^https?:\/\/www\.haberturk\.com\//i
+const idFromUrl = (url) => {
+    if (!HT_MAIN.test(url)) return null
+    const runs = url.split(/[?#]/)[0].match(/\d{6,}/g)
+    return runs ? runs[runs.length - 1] : null
+}
+
+// Detay JSON'ından tam gövde: önce extras.meta.fullBodyContent, boşsa foto bloklarının açıklamaları
+const extractFullBody = (j) => {
+    const meta = j?.extras?.meta || {}
+    const fbc = typeof meta.fullBodyContent === 'string' ? meta.fullBodyContent : ''
+    if (fbc.replace(/<[^>]+>/g, '').trim().length >= 50) return fbc
+    const items = j?.body?.items
+    if (Array.isArray(items)) {
+        const parts = items.filter((it) => it && it.type === 'photo').map((it) => it.description).filter(Boolean)
+        if (parts.length) return parts.join('\n')
+    }
+    return ''
+}
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+
+const fetchFullContent = async (id, retry = 1) => {
+    try {
+        const res = await fetch(`${DETAY_API}/${id}`, {
+            headers: { 'User-Agent': UA },
+            signal: AbortSignal.timeout(12000),
+        })
+        // Geçici hatalarda (rate-limit / sunucu) bir kez yeniden dene
+        if (res.status === 429 || res.status >= 500) {
+            if (retry > 0) {
+                await sleep(500)
+                return fetchFullContent(id, retry - 1)
+            }
+            return null
+        }
+        if (!res.ok) return null
+        const j = await res.json()
+        const txt = htmlToText(extractFullBody(j))
+        return txt.length >= 50 ? txt : null
+    } catch {
+        if (retry > 0) {
+            await sleep(500)
+            return fetchFullContent(id, retry - 1)
+        }
+        return null
+    }
+}
+
+const mapLimit = async (items, limit, fn) => {
+    let idx = 0
+    const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+        while (idx < items.length) {
+            const i = idx++
+            await fn(items[i], i)
+        }
+    })
+    await Promise.all(workers)
+}
+
+const enrichContent = async (docs) => {
+    console.log(`[+] Tam gövde içeriği çekiliyor (detay API, ${CONTENT_CONCURRENCY} paralel)...`)
+    let done = 0
+    let enriched = 0
+    await mapLimit(docs, CONTENT_CONCURRENCY, async (doc) => {
+        const id = idFromUrl(doc.url)
+        const full = id ? await fetchFullContent(id) : null
+        if (full) {
+            doc.content = full
+            enriched++
+        }
+        done++
+        if (done % 50 === 0 || done === docs.length) console.log(`   içerik: ${done}/${docs.length}`)
+    })
+    console.log(`[+] Tam gövde alınan: ${enriched}/${docs.length} (kalanı RSS özetine düştü)`)
 }
 
 const fetchFeed = async (url) => {
     try {
         const res = await fetch(url, {
-            headers: { 'User-Agent': 'Mozilla/5.0 (compatible; ArwenisSeed/1.0)' },
+            headers: { 'User-Agent': UA },
         })
         if (!res.ok) {
             console.error(`[-] ${url} yüklenemedi (${res.status})`)
@@ -72,9 +147,9 @@ const parseFeed = (xml, category) => {
         const text = cleanText((c.match(/<description>([\s\S]*?)<\/description>/) || [])[1] || '')
         const pub = cleanText((c.match(/<pubDate>([\s\S]*?)<\/pubDate>/) || [])[1] || '')
         const image = cleanText(
-            (c.match(/<image>([\s\S]*?)<\/image>/) || 
-             c.match(/<enclosure[^>]+url=["']([^"']+)["']/i) || 
-             c.match(/<media:content[^>]+url=["']([^"']+)["']/i) || 
+            (c.match(/<image>([\s\S]*?)<\/image>/) ||
+             c.match(/<enclosure[^>]+url=["']([^"']+)["']/i) ||
+             c.match(/<media:content[^>]+url=["']([^"']+)["']/i) ||
              [])[1] || ''
         )
         if (title && link && text) {
@@ -83,8 +158,8 @@ const parseFeed = (xml, category) => {
             items.push({
                 title,
                 url: link,
-                image: image,
-                text,
+                images: buildImageSet(image),
+                description: text,
                 content: text,
                 category,
                 source: 'rss',
@@ -115,6 +190,8 @@ const main = async () => {
         console.log(`[!] Canlı haber sayısı hedef limiti (${TARGET_COUNT}) aştığı için ilk ${TARGET_COUNT} kayıt alınıyor`)
         docs = docs.slice(0, TARGET_COUNT)
     }
+
+    if (!SKIP_CONTENT) await enrichContent(docs)
 
     const dataDir = path.join(__dirname, '..', 'data')
     fs.mkdirSync(dataDir, { recursive: true })

@@ -2,6 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import crypto from 'crypto'
+import { qdrant, QDRANT_URL, COLLECTION } from './lib/qdrant.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -16,10 +17,6 @@ const generateUUID = (str) => {
     ].join('-')
 }
 
-
-const QDRANT_URL = (process.env.QDRANT_URL || 'http://127.0.0.1:6333').replace(/\/+$/, '')
-const QDRANT_KEY = process.env.QDRANT_KEY || 'localkey'
-const COLLECTION = process.env.COLLECTION || 'arwenis'
 const EMBED_BASE_URL = (process.env.EMBED_BASE_URL || 'http://localhost:11434/v1').replace(/\/+$/, '')
 const EMBED_KEY = process.env.EMBED_KEY || 'ollama'
 const EMBED_MODEL = process.env.EMBED_MODEL || 'nomic-embed-text'
@@ -47,24 +44,16 @@ const embedBatch = async (texts) => {
     }
 }
 
-const qdrant = async (p, method, body) => {
-    const res = await fetch(`${QDRANT_URL}${p}`, {
-        method,
-        headers: { 'Content-Type': 'application/json', 'api-key': QDRANT_KEY },
-        body: body ? JSON.stringify(body) : undefined,
-    })
-    if (!res.ok && res.status !== 404) {
-        throw new Error(`qdrant ${method} ${p} ${res.status}: ${(await res.text()).slice(0, 200)}`)
-    }
-    return res
-}
-
 const main = async () => {
     const docs = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'data', 'news.json'), 'utf-8'))
+    if (!docs.length) {
+        console.error('✗ data/news.json boş — önce scrape veya synthetic çalıştırın.')
+        process.exit(1)
+    }
     console.log(`Embedding: ${EMBED_BASE_URL} (${EMBED_MODEL}) | Qdrant: ${QDRANT_URL}/${COLLECTION}`)
     console.log(`[+] ${docs.length} doküman`)
 
-    const dim = (await embed([`${docs[0].title}. ${docs[0].text}`]))[0].length
+    const dim = (await embed([`${docs[0].title}. ${docs[0].description}`]))[0].length
     console.log(`✓ Embedding boyutu: ${dim}`)
 
     await qdrant(`/collections/${COLLECTION}`, 'DELETE')
@@ -88,7 +77,7 @@ const main = async () => {
     const BATCH = 50
     for (let i = 0; i < docs.length; i += BATCH) {
         const chunk = docs.slice(i, i + BATCH)
-        const vectors = await embedBatch(chunk.map((d) => `${d.title}. ${d.text}`))
+        const vectors = await embedBatch(chunk.map((d) => `${d.title}. ${d.description}`))
         const points = chunk.map((d, idx) => {
             const docId = generateUUID(d.url)
             return {
@@ -98,8 +87,8 @@ const main = async () => {
                     id: docId,
                     title: d.title,
                     url: d.url,
-                    image: d.image || '',
-                    text: d.text,
+                    images: d.images || null,
+                    description: d.description,
                     content: d.content,
                     category: d.category,
                     source: d.source || 'unknown',
@@ -109,10 +98,10 @@ const main = async () => {
             }
         })
         await qdrant(`/collections/${COLLECTION}/points?wait=true`, 'PUT', { points })
-        console.log(`[Progress] ${Math.min(i + BATCH, docs.length)}/${docs.length}`)
+        console.log(`[+] ${Math.min(i + BATCH, docs.length)}/${docs.length}`)
     }
 
-    console.log('\n✓ Tohumlama tamamlandı (payload: id, title, url, image, text, content, category, source, publishedAt, publishedAtTs)')
+    console.log('\n✓ Tohumlama tamamlandı (payload: id, title, url, images, description, content, category, source, publishedAt, publishedAtTs)')
 }
 
 main().catch((e) => {
