@@ -5,12 +5,18 @@
     "type": "module",
     "description": "Arwenis için müşteriye/demoya özel vektör DB besleme aracı (scrape + embed + upsert). Arwenis ürününden bağımsızdır.",
     "scripts": {
-        "scrape": "node --env-file=.env scripts/scrape-news.mjs",
-        "seed": "node --env-file=.env scripts/seed-vector-db.mjs",
-        "synthetic": "node --env-file=.env scripts/generate-synthetic.mjs",
-        "all:real": "node --env-file=.env scripts/scrape-news.mjs && node --env-file=.env scripts/seed-vector-db.mjs",
-        "all:synthetic": "node --env-file=.env scripts/generate-synthetic.mjs && node --env-file=.env scripts/seed-vector-db.mjs",
-        "clear-points": "node --env-file=.env scripts/delete-qdrant.mjs points",
-        "delete-collection": "node --env-file=.env scripts/delete-qdrant.mjs collection"
+        "scrape:haberturk": "node --env-file=.env scripts/sources/haberturk.mjs",
+        "scrape:bloomberght": "node --env-file=.env scripts/sources/bloomberght.mjs",
+        "synthetic": "node --env-file=.env scripts/sources/synthetic.mjs",
+        "seed": "node --env-file=.env scripts/targets/qdrant.mjs seed",
+        "all:haberturk": "node --env-file=.env scripts/sources/haberturk.mjs && node --env-file=.env scripts/targets/qdrant.mjs seed",
+        "all:bloomberght": "node --env-file=.env scripts/sources/bloomberght.mjs && node --env-file=.env scripts/targets/qdrant.mjs seed",
+        "all:synthetic": "node --env-file=.env scripts/sources/synthetic.mjs && node --env-file=.env scripts/targets/qdrant.mjs seed",
+        "clear-points": "node --env-file=.env scripts/targets/qdrant.mjs clear",
+        "delete-collection": "node --env-file=.env scripts/targets/qdrant.mjs drop"
+    },
+    "dependencies": {
+        "entities": "^8.0.0",
+        "html-to-text": "^10.0.0"
     }
 }

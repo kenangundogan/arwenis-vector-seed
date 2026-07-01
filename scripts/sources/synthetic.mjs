@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
-import { buildImageSet } from './lib/images.mjs'
+import { buildImageSet } from '../lib/images.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const TARGET_COUNT = Number(process.env.TARGET_COUNT) || 1000
@@ -396,7 +396,7 @@ const replacePlaceholders = (text) => {
 
 const makeParagraph = (cat) => {
     const templates = DATA_TEMPLATES[cat] || DATA_TEMPLATES['gundem']
-    const sentenceCount = Math.floor(Math.random() * 2) + 2 // 2 veya 3 cümle
+    const sentenceCount = Math.floor(Math.random() * 2) + 2
     const sentences = []
     for (let i = 0; i < sentenceCount; i++) {
         sentences.push(replacePlaceholders(getRandomItem(templates.bodies)))
@@ -405,7 +405,7 @@ const makeParagraph = (cat) => {
 }
 
 const generateContent = (cat) => {
-    const paragraphCount = Math.floor(Math.random() * 5) + 1 // 1 ila 5 paragraf
+    const paragraphCount = Math.floor(Math.random() * 5) + 1
     const paragraphs = []
     for (let i = 0; i < paragraphCount; i++) {
         paragraphs.push(makeParagraph(cat))
@@ -434,6 +434,17 @@ const CATEGORY_IMAGES = {
     turizm: 'https://images.unsplash.com/photo-1488646953014-85cb44e25828?auto=format&fit=crop&w=800&q=80',
 }
 
+const unsplashImages = (rawUrl) =>
+    buildImageSet((w, h) => {
+        const u = new URL(rawUrl)
+        u.searchParams.set('auto', 'format')
+        u.searchParams.set('fit', 'crop')
+        u.searchParams.set('w', String(w))
+        u.searchParams.set('h', String(h))
+        u.searchParams.set('q', '80')
+        return u.toString()
+    })
+
 const makeSynthetic = (count) => {
     const docs = []
     for (let i = 0; i < count; i++) {
@@ -453,7 +464,7 @@ const makeSynthetic = (count) => {
         docs.push({
             title,
             url,
-            images: buildImageSet(CATEGORY_IMAGES[cat] || CATEGORY_IMAGES['gundem']),
+            images: unsplashImages(CATEGORY_IMAGES[cat] || CATEGORY_IMAGES['gundem']),
             description: text,
             content,
             category: cat,
@@ -469,7 +480,7 @@ const main = async () => {
     console.log(`[+] Sentetik haber üretimi başlatılıyor... (Hedef: ${TARGET_COUNT})`)
     const docs = makeSynthetic(TARGET_COUNT)
 
-    const dataDir = path.join(__dirname, '..', 'data')
+    const dataDir = path.join(__dirname, '..', '..', 'data')
     fs.mkdirSync(dataDir, { recursive: true })
     const target = path.join(dataDir, 'news.json')
     fs.writeFileSync(target, JSON.stringify(docs, null, 2), 'utf-8')
