@@ -19,7 +19,7 @@ Projede kullanılan temel altyapılar ve görevleri aşağıda açıklanmıştı
 ## Proje Klasör Yapısı
 
 * scripts/sources/ - Veri üreten kaynaklar (her dosya bir kaynak). Gerçek kaynaklar beslemeden (RSS/sitemap) yalnızca haber ID'lerini keşfeder; başlık, özet, gövde, görsel ve tarih dahil tüm alanları kaynağın detay API'sinden alıp normalize eder. synthetic.mjs ise gerçek kaynak yerine 18 kategoride paragraflı Türkçe yapay haber üretir. Çıktı her zaman data/news.json'dır (her kaynak dosyayı baştan yazar). Yeni kaynaklar buraya eklenir.
-* scripts/targets/ - Verinin yazıldığı vektör DB'ler (her dosya bir backend). qdrant.mjs: `node scripts/targets/qdrant.mjs <seed|clear|drop>` ile embed + upsert / temizleme / koleksiyon silme yapar. Yeni backend'ler (ör. pinecone) buraya eklenir.
+* scripts/targets/ - Verinin yazıldığı vektör DB'ler (her dosya bir backend). qdrant.mjs: `node scripts/targets/qdrant.mjs <rebuild|upsert|clear|drop>` — rebuild (koleksiyonu silip sıfırdan kurar), upsert (silmeden ekler/günceller), clear (noktaları siler), drop (koleksiyonu siler). Yeni backend'ler (ör. pinecone) buraya eklenir.
 * scripts/lib/ - Kaynak/backend bağımsız jenerik yardımcılar: images.mjs (oran/boyut katalogu + responsive set üreteci; CDN'e özel URL kurma her kaynağın kendi içindedir), html.mjs (metin/HTML temizleme), embed.mjs (embedding istemcisi), http.mjs (retry'li fetch + eşzamanlılık havuzu). Her kaynak kendi API çıkarımını ve görsel URL mantığını kendi dosyasında tutar.
 * .env.example - Projenin ihtiyaç duyduğu çevre değişkenleri için şablon dosyasıdır.
 
@@ -104,29 +104,33 @@ cp .env.example .env
 4. Projeyi çalıştırmak için aşağıdaki npm komutlarını kullanabilirsiniz:
 
 ```bash
-# İlgili kaynaktan gerçek haberleri çeker ve data/news.json dosyasına kaydeder
+# 1) Kaynaktan veri üret → data/news.json (dosyayı baştan yazar)
 npm run scrape:haberturk
 npm run scrape:bloomberght
+npm run generate:synthetic
 
-# Belirtilen hedef sayıda sentetik haber üretir ve data/news.json dosyasına kaydeder
-npm run synthetic
+# 2) data/news.json'ı Qdrant'a yaz
+npm run db:rebuild    # koleksiyonu SİLER + sıfırdan kurar (tam yenileme)
+npm run db:upsert     # koleksiyona DOKUNMADAN ekler/günceller (biriktirme)
 
-# data/news.json dosyasındaki verileri vektörleştirip Qdrant'a yükler
-npm run seed
-
-# Kaynaktan çekip doğrudan Qdrant'a yükler (kaynak + seed)
-npm run all:haberturk
-npm run all:bloomberght
-npm run all:synthetic
-
-# Koleksiyon yapısını bozmadan Qdrant içerisindeki tüm verileri siler
-npm run clear-points
-
-# Qdrant üzerindeki koleksiyonu tüm yapısı ve verileriyle birlikte tamamen siler
-npm run delete-collection
+# Bakım
+npm run db:clear      # koleksiyon yapısını bozmadan tüm noktaları siler
+npm run db:drop       # koleksiyonu tümüyle siler
 ```
 
-> Not: Her kaynak `data/news.json` dosyasını baştan yazar; aynı anda yalnızca bir kaynağın verisi tutulur. Birden çok kaynağı birleştirmek isterseniz ayrı bir birleştirme adımı gerekir.
+Her komut tek iş yapar; "üret + yaz" için iki komutu zincirleyin:
+
+```bash
+# Tam yenileme (temizle + kur)
+npm run scrape:haberturk && npm run db:rebuild
+
+# Güncel ekle (biriktir) — günlük/cron için
+npm run scrape:haberturk && npm run db:upsert
+```
+
+> Qdrant'ta iki yazma modu vardır: **`db:rebuild`** koleksiyonu her seferinde **sıfırlar** (tam yenileme); **`db:upsert`** **silmeden** yazar, böylece farklı kaynakları ve farklı günleri **biriktirebilirsiniz**. Nokta ID'leri haber URL'sinden deterministik üretildiğinden aynı haber tekrar geldiğinde güncellenir (duplicate olmaz), yeni haber eklenir.
+
+> Günlük/saatlik güncelleme için zincirlenmiş komutu bir zamanlayıcıya bağlayın, örn. cron: `0 * * * * cd /proje/yolu && npm run scrape:haberturk && npm run db:upsert`.
 
 ## Çevre Değişkenleri
 
