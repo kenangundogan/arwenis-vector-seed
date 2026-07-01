@@ -7,13 +7,11 @@
     "scripts": {
         "scrape:haberturk": "node --env-file=.env scripts/sources/haberturk.mjs",
         "scrape:bloomberght": "node --env-file=.env scripts/sources/bloomberght.mjs",
-        "synthetic": "node --env-file=.env scripts/sources/synthetic.mjs",
-        "seed": "node --env-file=.env scripts/targets/qdrant.mjs seed",
-        "all:haberturk": "node --env-file=.env scripts/sources/haberturk.mjs && node --env-file=.env scripts/targets/qdrant.mjs seed",
-        "all:bloomberght": "node --env-file=.env scripts/sources/bloomberght.mjs && node --env-file=.env scripts/targets/qdrant.mjs seed",
-        "all:synthetic": "node --env-file=.env scripts/sources/synthetic.mjs && node --env-file=.env scripts/targets/qdrant.mjs seed",
-        "clear-points": "node --env-file=.env scripts/targets/qdrant.mjs clear",
-        "delete-collection": "node --env-file=.env scripts/targets/qdrant.mjs drop"
+        "generate:synthetic": "node --env-file=.env scripts/sources/synthetic.mjs",
+        "db:rebuild": "node --env-file=.env scripts/targets/qdrant.mjs rebuild",
+        "db:upsert": "node --env-file=.env scripts/targets/qdrant.mjs upsert",
+        "db:clear": "node --env-file=.env scripts/targets/qdrant.mjs clear",
+        "db:drop": "node --env-file=.env scripts/targets/qdrant.mjs drop"
     },
     "dependencies": {
         "entities": "^8.0.0",

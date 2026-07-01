@@ -33,10 +33,19 @@ const qdrant = async (p, method, body) => {
     return res
 }
 
-const recreateCollection = async (dim) => {
-    await qdrant(`/collections/${COLLECTION}`, 'DELETE')
-    await qdrant(`/collections/${COLLECTION}`, 'PUT', { vectors: { size: dim, distance: 'Cosine' } })
-    console.log('✓ Koleksiyon (yeniden) oluşturuldu')
+const readDocs = () => {
+    const docs = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', 'data', 'news.json'), 'utf-8'))
+    if (!docs.length) {
+        console.error('✗ data/news.json boş — önce bir kaynak çalıştırın.')
+        process.exit(1)
+    }
+    return docs
+}
+
+const probeDim = async (docs) => {
+    const dim = (await embed([`${docs[0].title}. ${docs[0].description}`]))[0].length
+    console.log(`✓ Embedding boyutu: ${dim}`)
+    return dim
 }
 
 const ensureIndexes = async () => {
@@ -47,21 +56,35 @@ const ensureIndexes = async () => {
     console.log('✓ Payload index’leri oluşturuldu (category, source, publishedAtTs)')
 }
 
-const seed = async () => {
-    const docs = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', 'data', 'news.json'), 'utf-8'))
-    if (!docs.length) {
-        console.error('✗ data/news.json boş — önce scrape veya synthetic çalıştırın.')
-        process.exit(1)
-    }
-    console.log(`Embedding: ${EMBED_LABEL} | Qdrant: ${QDRANT_URL}/${COLLECTION}`)
-    console.log(`[+] ${docs.length} doküman`)
-
-    const dim = (await embed([`${docs[0].title}. ${docs[0].description}`]))[0].length
-    console.log(`✓ Embedding boyutu: ${dim}`)
-
-    await recreateCollection(dim)
+const recreateCollection = async (dim) => {
+    await qdrant(`/collections/${COLLECTION}`, 'DELETE')
+    await qdrant(`/collections/${COLLECTION}`, 'PUT', { vectors: { size: dim, distance: 'Cosine' } })
     await ensureIndexes()
+    console.log('✓ Koleksiyon (yeniden) oluşturuldu')
+}
 
+const collectionDim = async () => {
+    const res = await qdrant(`/collections/${COLLECTION}`, 'GET')
+    if (!res.ok) return null
+    const j = await res.json()
+    return j?.result?.config?.params?.vectors?.size ?? null
+}
+
+const ensureCollection = async (dim) => {
+    const existing = await collectionDim()
+    if (existing == null) {
+        await qdrant(`/collections/${COLLECTION}`, 'PUT', { vectors: { size: dim, distance: 'Cosine' } })
+        await ensureIndexes()
+        console.log('✓ Koleksiyon oluşturuldu')
+        return
+    }
+    if (existing !== dim) {
+        throw new Error(`Vektör boyutu uyuşmuyor (koleksiyon: ${existing}, embedding: ${dim}). Farklı embedding modeli → önce 'seed' (yeniden kur) veya 'drop' gerekir.`)
+    }
+    console.log(`✓ Mevcut koleksiyona ekleniyor (boyut: ${existing})`)
+}
+
+const upsertPoints = async (docs) => {
     const BATCH = 50
     for (let i = 0; i < docs.length; i += BATCH) {
         const chunk = docs.slice(i, i + BATCH)
@@ -88,8 +111,26 @@ const seed = async () => {
         await qdrant(`/collections/${COLLECTION}/points?wait=true`, 'PUT', { points })
         console.log(`[+] ${Math.min(i + BATCH, docs.length)}/${docs.length}`)
     }
+}
 
-    console.log('\n✓ Tohumlama tamamlandı (payload: id, title, url, images, description, content, category, source, publishedAt, publishedAtTs)')
+const rebuild = async () => {
+    const docs = readDocs()
+    console.log(`Embedding: ${EMBED_LABEL} | Qdrant: ${QDRANT_URL}/${COLLECTION}`)
+    console.log(`[+] ${docs.length} doküman (sıfırdan kur)`)
+    const dim = await probeDim(docs)
+    await recreateCollection(dim)
+    await upsertPoints(docs)
+    console.log('\n✓ Yeniden kurma tamamlandı (koleksiyon sıfırdan kuruldu)')
+}
+
+const upsert = async () => {
+    const docs = readDocs()
+    console.log(`Embedding: ${EMBED_LABEL} | Qdrant: ${QDRANT_URL}/${COLLECTION}`)
+    console.log(`[+] ${docs.length} doküman (ekle/güncelle)`)
+    const dim = await probeDim(docs)
+    await ensureCollection(dim)
+    await upsertPoints(docs)
+    console.log('\n✓ Ekleme tamamlandı (mevcut koleksiyona upsert)')
 }
 
 const clearPoints = async () => {
@@ -104,13 +145,13 @@ const dropCollection = async () => {
     console.log('✓ Koleksiyon başarıyla silindi.')
 }
 
-const ACTIONS = { seed, clear: clearPoints, drop: dropCollection }
+const ACTIONS = { rebuild, upsert, clear: clearPoints, drop: dropCollection }
 
 const main = async () => {
     const action = process.argv[2]
     const fn = ACTIONS[action]
     if (!fn) {
-        console.error('[-] Geçersiz işlem. Kullanım: node targets/qdrant.mjs <seed|clear|drop>')
+        console.error('[-] Geçersiz işlem. Kullanım: node targets/qdrant.mjs <rebuild|upsert|clear|drop>')
         process.exit(1)
     }
     await fn()
