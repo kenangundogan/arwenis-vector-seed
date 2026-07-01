@@ -4,7 +4,7 @@ Bu proje, Arwenis RAG (Retrieval-Augmented Generation) asistanının bilgi taban
 
 ## Genel Bakış ve Mimarideki Yeri
 
-Arwenis ürünü (Payload CMS ve RAG asistanı), veri kaynağı ve vektör veritabanı sağlayıcılarından bağımsız bir mimariye sahiptir. Yalnızca CMS paneli üzerinden tanımlanan vektör veritabanı adresini ve koleksiyonunu sorgular.
+Arwenis ürünü (CMS ve RAG asistanı), veri kaynağı ve vektör veritabanı sağlayıcılarından bağımsız bir mimariye sahiptir. Yalnızca CMS paneli üzerinden tanımlanan vektör veritabanı adresini ve koleksiyonunu sorgular.
 
 Verilerin hangi kaynaklardan çekileceği, nasıl temizleneceği, hangi kategorilere ayrılacağı ve vektör veritabanına nasıl yükleneceği müşteriye ve projeye özel senaryolardır. Bu nedenle, vektör veritabanını besleyen bu araç ana Arwenis projesinden ayrı bir repo olarak konumlandırılmıştır.
 
@@ -18,17 +18,15 @@ Projede kullanılan temel altyapılar ve görevleri aşağıda açıklanmıştı
 
 ## Proje Klasör Yapısı
 
-* scripts/scrape-news.mjs - Belirlenen RSS kaynaklarından gerçek haberleri çekerek data/news.json dosyasına kaydeder.
-* scripts/generate-synthetic.mjs - Astrolojiden spora kadar 18 farklı kategoride, zengin içerikli ve paragraflı Türkçe yapay haberler üreterek data/news.json dosyasına kaydeder.
-* scripts/seed-vector-db.mjs - Üretilen veya kazınan haber verilerini embedding API'si üzerinden vektörleştirerek Qdrant veritabanına yükler.
-* scripts/delete-qdrant.mjs - Qdrant üzerindeki koleksiyonları silmek veya verileri temizlemek için kullanılan yardımcı araçtır.
-* scripts/lib/ - Scriptler arası ortak yardımcılar: images.mjs (responsive görsel seti), html.mjs (metin/HTML temizleme), qdrant.mjs (Qdrant REST istemcisi).
+* scripts/sources/ - Veri üreten kaynaklar (her dosya bir kaynak). Gerçek kaynaklar beslemeden (RSS/sitemap) yalnızca haber ID'lerini keşfeder; başlık, özet, gövde, görsel ve tarih dahil tüm alanları kaynağın detay API'sinden alıp normalize eder. synthetic.mjs ise gerçek kaynak yerine 18 kategoride paragraflı Türkçe yapay haber üretir. Çıktı her zaman data/news.json'dır (her kaynak dosyayı baştan yazar). Yeni kaynaklar buraya eklenir.
+* scripts/targets/ - Verinin yazıldığı vektör DB'ler (her dosya bir backend). qdrant.mjs: `node scripts/targets/qdrant.mjs <seed|clear|drop>` ile embed + upsert / temizleme / koleksiyon silme yapar. Yeni backend'ler (ör. pinecone) buraya eklenir.
+* scripts/lib/ - Kaynak/backend bağımsız jenerik yardımcılar: images.mjs (oran/boyut katalogu + responsive set üreteci; CDN'e özel URL kurma her kaynağın kendi içindedir), html.mjs (metin/HTML temizleme), embed.mjs (embedding istemcisi), http.mjs (retry'li fetch + eşzamanlılık havuzu). Her kaynak kendi API çıkarımını ve görsel URL mantığını kendi dosyasında tutar.
 * .env.example - Projenin ihtiyaç duyduğu çevre değişkenleri için şablon dosyasıdır.
 
 ## Sistem Gereksinimleri ve Kurulum
 
 ### Node.js Kurulumu
-Node.js v20.6.0 veya daha yeni bir sürüm gereklidir. Projede yerleşik çevre değişkeni desteği (--env-file) kullanıldığı için ekstra bir paket yüklemeye gerek yoktur.
+Node.js v20.6.0 veya daha yeni bir sürüm gereklidir (`--env-file` desteği için). Bağımlılıkları kurmak için proje kökünde `npm install` çalıştırın. Çalışma-zamanı bağımlılıkları metin/HTML temizlemede kullanılan `entities` (HTML entity çözme) ve `html-to-text` (gövde HTML'ini düz metne çevirme) paketleridir.
 
 ### Qdrant Kurulumu
 Yerel geliştirme ortamında Docker kullanarak Qdrant veritabanını başlatmak için aşağıdaki komutu çalıştırabilirsiniz:
@@ -60,17 +58,17 @@ Qdrant veritabanına yüklenen verilerin payload yapısı şu şekildedir:
 
 ```json
 {
-  "id": "c6218d6e-f783-3a1e-b8d4-53900a0b2d6a", // Haber URL'sinden üretilen deterministik UUID
+  "id": "c6218d6e-f783-3a1e-b8d4-53900a0b2d6a",
   "title": "Haber Başlığı",
   "url": "Haber Linki",
   "description": "Haber Özet Metni (embedding ve arama için kullanılan kısa alan)",
   "content": "Haber Gövdesi (görüntüleme için tam metin)",
   "category": "kategori",
-  "source": "rss veya synthetic", // Verinin kaynağını belirtir
+  "source": "haberturk | bloomberght | synthetic",
   "publishedAt": "ISO Tarih Formatı (Örn: 2026-06-24T...)",
   "publishedAtTs": 1782298910940,
-  "images": {                       // Responsive görsel seti (görsel yoksa null)
-    "16x9": [                       // genişlik varyantları (200..1920); son eleman = en büyük
+  "images": {
+    "16x9": [
       { "name": "xs", "w": 320, "h": 180, "url": ".../320x180" }
       // ... small, medium, large, xlarge, xxlarge
     ],
@@ -79,29 +77,36 @@ Qdrant veritabanına yüklenen verilerin payload yapısı şu şekildedir:
 }
 ```
 
-`description` kısa özettir (embedding girdisi: `title + description`); `content` ise görüntüleme için tam gövdedir. RSS scrape'inde `content`, Habertürk detay API'sinden (`htapi.haberturk.com/api/v1/haber/detay/{id}`) çekilip temizlenir — önce `extras.meta.fullBodyContent`, foto galeri haberlerinde ise `body.items[].description`. API hatası ya da boş içerikte `content`, RSS özetine (`description`) düşer.
+Gerçek kaynaklarda besleme (RSS/sitemap) yalnızca haber ID'lerini keşfeder; `title`, `description`, `content`, `images` ve tarih dahil tüm alanlar kaynağın detay API'sinden o kaynağın kendi dosyasında normalize edilir. `description` kısa özettir (embedding girdisi: `title + description`), `content` görüntüleme için tam gövdedir. Kategori kaynağa göre belirlenir (beslemedeki bölüm eşlemesi ya da sabit bir değer). Detay API'sinden alınamayan haberler atlanır.
 
 > Not: Arwenis panelindeki `textKey` ayarı bu alanı işaret etmelidir (`description`).
 
-`images` alanı kaynaktan (Habertürk / Unsplash) gelen tek URL'den **ingest anında türetilir** — her iki CDN de URL üzerinden anlık boyutlandırma yaptığından varyantlar `scripts/lib/images.mjs` içindeki ortak `buildImageSet` yardımcısıyla üretilir. Her oran, `{ name, w, h, url }` varyantlarından oluşan bir dizidir. Frontend bunu doğrudan `<img srcset>` / `<picture>` yapısına map'leyebilir (örn. `toSrcsetAttr(images['16x9'])`); tek görsel gerektiğinde en büyüğü için `images['16x9'].at(-1)` veya isimle `images['16x9'].find(v => v.name === 'large')` kullanılır. Görsel alt metni için kaydın `title` alanı kullanılır. Boyutlandırılamayan eski statik görsellerde varyant üretilemez; ham URL tek elemanlı dizi (`name: 'original'`, `w`/`h` `null`) olarak korunur.
+`images` alanı **ingest anında türetilir**: kaynağın görsel CDN'i URL üzerinden anlık boyutlandırma yaptığından, her kaynak kendi CDN'ine uygun bir `(w, h) => url` üreteci verir; `scripts/lib/images.mjs` içindeki jenerik `buildImageSet` bu üreteçle oran/boyut katalogunu doldurur. Her oran, `{ name, w, h, url }` varyantlarından oluşan bir dizidir. Frontend bunu doğrudan `<img srcset>` / `<picture>` yapısına map'leyebilir (örn. `toSrcsetAttr(images['16x9'])`); tek görsel gerektiğinde en büyüğü için `images['16x9'].at(-1)` veya isimle `images['16x9'].find(v => v.name === 'large')` kullanılır. Görsel alt metni için kaydın `title` alanı kullanılır. Görsel yoksa `images` `null` olur.
 
 Bu şema, Arwenis panelinde tanımlanan arama ayarlarıyla (textKey, categoryKey, dateKey vb.) doğrudan uyumlu olmalıdır. Ayrıca `category` ve `source` alanları için Qdrant üzerinde otomatik olarak keyword payload indeksleri oluşturulmaktadır.
 
 ## Kullanım Kılavuzu
 
-1. Çevre değişkenleri şablonunu kopyalayarak kendi yapılandırma dosyanızı oluşturun:
+1. Bağımlılıkları kurun:
+
+```bash
+npm install
+```
+
+2. Çevre değişkenleri şablonunu kopyalayarak kendi yapılandırma dosyanızı oluşturun:
 
 ```bash
 cp .env.example .env
 ```
 
-2. .env dosyası içerisindeki bağlantı adreslerini ve model bilgilerini kendi ortamınıza göre güncelleyin.
+3. .env dosyası içerisindeki bağlantı adreslerini ve model bilgilerini kendi ortamınıza göre güncelleyin.
 
-3. Projeyi çalıştırmak için aşağıdaki npm komutlarını kullanabilirsiniz:
+4. Projeyi çalıştırmak için aşağıdaki npm komutlarını kullanabilirsiniz:
 
 ```bash
-# RSS kaynağından gerçek haberleri çeker ve data/news.json dosyasına kaydeder
-npm run scrape
+# İlgili kaynaktan gerçek haberleri çeker ve data/news.json dosyasına kaydeder
+npm run scrape:haberturk
+npm run scrape:bloomberght
 
 # Belirtilen hedef sayıda sentetik haber üretir ve data/news.json dosyasına kaydeder
 npm run synthetic
@@ -109,10 +114,9 @@ npm run synthetic
 # data/news.json dosyasındaki verileri vektörleştirip Qdrant'a yükler
 npm run seed
 
-# Gerçek haberleri çeker ve doğrudan Qdrant'a yükler (Scrape + Seed)
-npm run all:real
-
-# Sentetik haberleri üretir ve doğrudan Qdrant'a yükler (Synthetic + Seed)
+# Kaynaktan çekip doğrudan Qdrant'a yükler (kaynak + seed)
+npm run all:haberturk
+npm run all:bloomberght
 npm run all:synthetic
 
 # Koleksiyon yapısını bozmadan Qdrant içerisindeki tüm verileri siler
@@ -121,6 +125,8 @@ npm run clear-points
 # Qdrant üzerindeki koleksiyonu tüm yapısı ve verileriyle birlikte tamamen siler
 npm run delete-collection
 ```
+
+> Not: Her kaynak `data/news.json` dosyasını baştan yazar; aynı anda yalnızca bir kaynağın verisi tutulur. Birden çok kaynağı birleştirmek isterseniz ayrı bir birleştirme adımı gerekir.
 
 ## Çevre Değişkenleri
 
@@ -134,9 +140,8 @@ Aşağıdaki değişkenler .env dosyası üzerinden kontrol edilir:
 | EMBED_BASE_URL | http://localhost:11434/v1 | Embedding API erişim adresi (Ollama veya OpenAI) |
 | EMBED_KEY | ollama | Embedding API anahtarı |
 | EMBED_MODEL | nomic-embed-text | Vektör dönüştürmede kullanılan model adı |
-| TARGET_COUNT | 1000 | Sentetik veri üretiminde hedeflenen / RSS scrape'inde üst sınır olan toplam kayıt sayısı |
-| SKIP_CONTENT | 0 | `1` yapılırsa RSS scrape'inde tam gövde içeriği çekilmez (`content`, RSS özetiyle aynı kalır) |
-| CONTENT_CONCURRENCY | 8 | Tam gövde içeriği çekilirken eşzamanlı detay API isteği sayısı |
+| TARGET_COUNT | 1000 | Sentetik üretimde hedeflenen / gerçek kaynakta üst sınır olan toplam kayıt sayısı |
+| CONTENT_CONCURRENCY | 8 | Detay API'sinden içerik çekilirken eşzamanlı istek sayısı |
 
 ### Embedding Modeli Alternatifleri ve Yapılandırma
 
