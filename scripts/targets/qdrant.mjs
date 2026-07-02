@@ -145,19 +145,9 @@ const dropCollection = async () => {
     console.log('✓ Koleksiyon başarıyla silindi.')
 }
 
-const ACTIONS = { rebuild, upsert, clear: clearPoints, drop: dropCollection }
-
-const main = async () => {
-    const action = process.argv[2]
+export const run = async (action) => {
+    const ACTIONS = { rebuild, upsert, clear: clearPoints, drop: dropCollection }
     const fn = ACTIONS[action]
-    if (!fn) {
-        console.error('[-] Geçersiz işlem. Kullanım: node targets/qdrant.mjs <rebuild|upsert|clear|drop>')
-        process.exit(1)
-    }
+    if (!fn) throw new Error(`Geçersiz işlem: '${action}' (rebuild|upsert|clear|drop)`)
     await fn()
 }
-
-main().catch((e) => {
-    console.error('\n✗ Hata:', e.message)
-    process.exit(1)
-})
