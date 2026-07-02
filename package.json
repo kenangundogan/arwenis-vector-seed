@@ -8,10 +8,14 @@
         "scrape:haberturk": "node --env-file=.env scripts/sources/haberturk.mjs",
         "scrape:bloomberght": "node --env-file=.env scripts/sources/bloomberght.mjs",
         "generate:synthetic": "node --env-file=.env scripts/sources/synthetic.mjs",
-        "db:rebuild": "node --env-file=.env scripts/targets/qdrant.mjs rebuild",
-        "db:upsert": "node --env-file=.env scripts/targets/qdrant.mjs upsert",
-        "db:clear": "node --env-file=.env scripts/targets/qdrant.mjs clear",
-        "db:drop": "node --env-file=.env scripts/targets/qdrant.mjs drop"
+        "db:rebuild:qdrant": "node --env-file=.env scripts/db.mjs rebuild qdrant",
+        "db:rebuild:weaviate": "node --env-file=.env scripts/db.mjs rebuild weaviate",
+        "db:upsert:qdrant": "node --env-file=.env scripts/db.mjs upsert qdrant",
+        "db:upsert:weaviate": "node --env-file=.env scripts/db.mjs upsert weaviate",
+        "db:clear:qdrant": "node --env-file=.env scripts/db.mjs clear qdrant",
+        "db:clear:weaviate": "node --env-file=.env scripts/db.mjs clear weaviate",
+        "db:drop:qdrant": "node --env-file=.env scripts/db.mjs drop qdrant",
+        "db:drop:weaviate": "node --env-file=.env scripts/db.mjs drop weaviate"
     },
     "dependencies": {
         "entities": "^8.0.0",
